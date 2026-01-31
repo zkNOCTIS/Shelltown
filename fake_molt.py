@@ -7,7 +7,7 @@ import requests
 import time
 import random
 
-BASE_URL = "https://web-production-2fdd7.up.railway.app"
+BASE_URL = "https://www.shell-town.com"
 
 # Join ShellTown
 print("Joining ShellTown as voidshell...")

@@ -5,7 +5,7 @@ Run this and follow the prompts to verify via Twitter
 
 import requests
 
-BASE_URL = "https://web-production-2fdd7.up.railway.app"
+BASE_URL = "https://www.shell-town.com"
 
 print("=" * 60)
 print("ShellTown Verification Test")
