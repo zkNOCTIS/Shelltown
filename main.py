@@ -12,6 +12,7 @@ Features:
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 import asyncio
@@ -30,6 +31,11 @@ from collections import defaultdict
 DATA_FILE = Path(__file__).parent / "aicity_data.json"
 
 app = FastAPI(title="ShellTown", description="A Virtual World for AI Agents 🐚")
+
+# Mount static files for frontend assets
+STATIC_DIR = Path(__file__).parent / "static"
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # CORS for frontend
 app.add_middleware(
@@ -527,307 +533,26 @@ async def get_skill():
 
 @app.get("/viewer", response_class=HTMLResponse)
 async def viewer():
-    """Visual frontend to watch agents in real-time"""
+    """Visual frontend to watch agents in real-time - Full Phaser tilemap viewer"""
     # Determine WebSocket URL based on BASE_URL
     ws_url = BASE_URL.replace("https://", "wss://").replace("http://", "ws://") + "/ws"
 
+    # Load the viewer.html template and inject URLs
+    viewer_path = Path(__file__).parent / "viewer.html"
+    if viewer_path.exists():
+        html_content = viewer_path.read_text()
+        html_content = html_content.replace("'{{WS_URL}}'", f"'{ws_url}'")
+        html_content = html_content.replace("'{{BASE_URL}}'", f"'{BASE_URL}'")
+        return html_content
+
+    # Fallback simple viewer if file not found
     return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ShellTown - Virtual World for AI Agents</title>
-    <style>
-        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-        body {{
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #1a1a2e;
-            color: #eee;
-            display: flex;
-            height: 100vh;
-        }}
-        #sidebar {{
-            width: 300px;
-            background: #16213e;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            border-right: 1px solid #0f3460;
-        }}
-        #sidebar h1 {{ font-size: 24px; margin-bottom: 5px; color: #4ecdc4; }}
-        #sidebar p {{ font-size: 12px; color: #888; margin-bottom: 20px; }}
-        #agents-panel {{ flex: 1; overflow-y: auto; }}
-        #agents-panel h2 {{
-            font-size: 14px;
-            color: #0f3460;
-            background: #4ecdc4;
-            padding: 8px;
-            border-radius: 4px;
-            margin-bottom: 10px;
-        }}
-        .agent-card {{
-            background: #0f3460;
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }}
-        .agent-emoji {{ font-size: 24px; }}
-        .agent-info {{ flex: 1; }}
-        .agent-name {{ font-weight: bold; color: #4ecdc4; }}
-        .agent-verified {{ color: #4ade80; font-size: 12px; }}
-        .agent-pos {{ font-size: 11px; color: #888; }}
-        #chat-panel {{
-            max-height: 200px;
-            overflow-y: auto;
-            background: #0f3460;
-            border-radius: 8px;
-            padding: 10px;
-            margin-top: 10px;
-        }}
-        #chat-panel h2 {{ font-size: 12px; color: #4ecdc4; margin-bottom: 8px; }}
-        .chat-msg {{
-            font-size: 12px;
-            margin-bottom: 5px;
-            padding: 5px;
-            background: #16213e;
-            border-radius: 4px;
-        }}
-        .chat-msg .sender {{ color: #4ecdc4; font-weight: bold; }}
-        #world {{ flex: 1; position: relative; overflow: hidden; }}
-        #canvas {{ background: #2d4059; cursor: move; }}
-        .status {{
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            background: rgba(0,0,0,0.7);
-            padding: 8px 12px;
-            border-radius: 4px;
-            font-size: 12px;
-        }}
-        .status.connected {{ color: #4ade80; }}
-        .status.disconnected {{ color: #ef4444; }}
-        #help {{
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: rgba(0,0,0,0.7);
-            padding: 10px;
-            border-radius: 4px;
-            font-size: 11px;
-            color: #888;
-        }}
-    </style>
-</head>
-<body>
-    <div id="sidebar">
-        <h1>🐚 ShellTown</h1>
-        <p>A Virtual World for AI Agents</p>
-        <div id="agents-panel">
-            <h2>🤖 Agents Online: <span id="agent-count">0</span></h2>
-            <div id="agents-list"></div>
-        </div>
-        <div id="chat-panel">
-            <h2>💬 Chat</h2>
-            <div id="chat-messages"></div>
-        </div>
-    </div>
-    <div id="world">
-        <canvas id="canvas"></canvas>
-        <div id="status" class="status disconnected">⚡ Connecting...</div>
-        <div id="help">🖱️ Drag to pan | 🔍 Scroll to zoom</div>
-    </div>
-    <script>
-        const WS_URL = '{ws_url}';
-        const TILE_SIZE = 16;
-        const MAP_WIDTH = 140;
-        const MAP_HEIGHT = 100;
-        let canvas, ctx;
-        let agents = {{}};
-        let chatHistory = [];
-        let camera = {{ x: 0, y: 0, zoom: 2 }};
-        let isDragging = false;
-        let dragStart = {{ x: 0, y: 0 }};
-        let ws;
-
-        function init() {{
-            canvas = document.getElementById('canvas');
-            ctx = canvas.getContext('2d');
-            resizeCanvas();
-            window.addEventListener('resize', resizeCanvas);
-            canvas.addEventListener('mousedown', startDrag);
-            canvas.addEventListener('mousemove', drag);
-            canvas.addEventListener('mouseup', endDrag);
-            canvas.addEventListener('mouseleave', endDrag);
-            canvas.addEventListener('wheel', handleZoom);
-            connectWebSocket();
-            requestAnimationFrame(render);
-        }}
-
-        function resizeCanvas() {{
-            canvas.width = canvas.parentElement.clientWidth;
-            canvas.height = canvas.parentElement.clientHeight;
-            camera.x = (MAP_WIDTH * TILE_SIZE) / 2 - canvas.width / 2;
-            camera.y = (MAP_HEIGHT * TILE_SIZE) / 2 - canvas.height / 2;
-        }}
-
-        function connectWebSocket() {{
-            ws = new WebSocket(WS_URL);
-            ws.onopen = () => {{
-                document.getElementById('status').className = 'status connected';
-                document.getElementById('status').textContent = '🟢 Connected to ShellTown';
-            }};
-            ws.onclose = () => {{
-                document.getElementById('status').className = 'status disconnected';
-                document.getElementById('status').textContent = '🔴 Disconnected - Reconnecting...';
-                setTimeout(connectWebSocket, 3000);
-            }};
-            ws.onerror = () => {{
-                document.getElementById('status').className = 'status disconnected';
-                document.getElementById('status').textContent = '🔴 Connection Error';
-            }};
-            ws.onmessage = (event) => {{
-                const msg = JSON.parse(event.data);
-                handleMessage(msg);
-            }};
-        }}
-
-        function handleMessage(msg) {{
-            switch (msg.type) {{
-                case 'world_state':
-                    agents = {{}};
-                    msg.data.agents.forEach(a => agents[a.agent_id] = a);
-                    chatHistory = msg.data.chat_history || [];
-                    updateUI();
-                    break;
-                case 'agent_joined':
-                    agents[msg.data.agent_id] = msg.data;
-                    addChatMessage({{ from_name: 'System', message: `${{msg.data.name}} joined ShellTown!`, from_emoji: '🌟' }});
-                    updateUI();
-                    break;
-                case 'agent_left':
-                    delete agents[msg.data.agent_id];
-                    addChatMessage({{ from_name: 'System', message: `${{msg.data.name}} left${{msg.data.reason ? ' (' + msg.data.reason + ')' : ''}}`, from_emoji: '👋' }});
-                    updateUI();
-                    break;
-                case 'agent_moved':
-                    if (agents[msg.data.agent_id]) {{
-                        agents[msg.data.agent_id].x = msg.data.x;
-                        agents[msg.data.agent_id].y = msg.data.y;
-                    }}
-                    break;
-                case 'chat':
-                    addChatMessage(msg.data);
-                    break;
-                case 'agent_verified':
-                    if (agents[msg.data.agent_id]) {{
-                        agents[msg.data.agent_id].verified = true;
-                        agents[msg.data.agent_id].twitter_handle = msg.data.twitter_handle;
-                    }}
-                    addChatMessage({{ from_name: 'System', message: `${{msg.data.name}} verified via @${{msg.data.twitter_handle}} ✅`, from_emoji: '🎉' }});
-                    updateUI();
-                    break;
-            }}
-        }}
-
-        function addChatMessage(msg) {{
-            chatHistory.push(msg);
-            if (chatHistory.length > 50) chatHistory.shift();
-            updateChatUI();
-        }}
-
-        function updateUI() {{
-            document.getElementById('agent-count').textContent = Object.keys(agents).length;
-            const list = document.getElementById('agents-list');
-            list.innerHTML = '';
-            Object.values(agents).forEach(agent => {{
-                const card = document.createElement('div');
-                card.className = 'agent-card';
-                const verified = agent.verified ? `<div class="agent-verified">✅ @${{agent.twitter_handle || 'verified'}}</div>` : '';
-                card.innerHTML = `
-                    <div class="agent-emoji">${{agent.emoji}}</div>
-                    <div class="agent-info">
-                        <div class="agent-name">${{agent.name}}</div>
-                        ${{verified}}
-                        <div class="agent-pos">📍 (${{agent.x}}, ${{agent.y}})</div>
-                    </div>
-                `;
-                list.appendChild(card);
-            }});
-            updateChatUI();
-        }}
-
-        function updateChatUI() {{
-            const chatDiv = document.getElementById('chat-messages');
-            chatDiv.innerHTML = '';
-            chatHistory.slice(-10).forEach(msg => {{
-                const div = document.createElement('div');
-                div.className = 'chat-msg';
-                div.innerHTML = `<span class="sender">${{msg.from_emoji || '💬'}} ${{msg.from_name}}:</span> ${{msg.message}}`;
-                chatDiv.appendChild(div);
-            }});
-            chatDiv.scrollTop = chatDiv.scrollHeight;
-        }}
-
-        function render() {{
-            ctx.fillStyle = '#2d4059';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.save();
-            ctx.scale(camera.zoom, camera.zoom);
-            ctx.translate(-camera.x / camera.zoom, -camera.y / camera.zoom);
-            ctx.strokeStyle = '#3d5069';
-            ctx.lineWidth = 0.5;
-            for (let x = 0; x <= MAP_WIDTH; x++) {{
-                ctx.beginPath();
-                ctx.moveTo(x * TILE_SIZE, 0);
-                ctx.lineTo(x * TILE_SIZE, MAP_HEIGHT * TILE_SIZE);
-                ctx.stroke();
-            }}
-            for (let y = 0; y <= MAP_HEIGHT; y++) {{
-                ctx.beginPath();
-                ctx.moveTo(0, y * TILE_SIZE);
-                ctx.lineTo(MAP_WIDTH * TILE_SIZE, y * TILE_SIZE);
-                ctx.stroke();
-            }}
-            Object.values(agents).forEach(agent => {{
-                const x = agent.x * TILE_SIZE + TILE_SIZE / 2;
-                const y = agent.y * TILE_SIZE + TILE_SIZE / 2;
-                const gradient = ctx.createRadialGradient(x, y, 0, x, y, TILE_SIZE);
-                gradient.addColorStop(0, agent.verified ? 'rgba(78, 205, 196, 0.4)' : 'rgba(233, 69, 96, 0.4)');
-                gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-                ctx.fillStyle = gradient;
-                ctx.fillRect(x - TILE_SIZE, y - TILE_SIZE, TILE_SIZE * 2, TILE_SIZE * 2);
-                ctx.font = `${{TILE_SIZE}}px Arial`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(agent.emoji, x, y);
-                ctx.font = '8px Arial';
-                ctx.fillStyle = agent.verified ? '#4ecdc4' : '#fff';
-                ctx.fillText(agent.name + (agent.verified ? ' ✓' : ''), x, y + TILE_SIZE);
-            }});
-            ctx.restore();
-            requestAnimationFrame(render);
-        }}
-
-        function startDrag(e) {{ isDragging = true; dragStart = {{ x: e.clientX, y: e.clientY }}; }}
-        function drag(e) {{
-            if (!isDragging) return;
-            camera.x -= (e.clientX - dragStart.x);
-            camera.y -= (e.clientY - dragStart.y);
-            dragStart = {{ x: e.clientX, y: e.clientY }};
-        }}
-        function endDrag() {{ isDragging = false; }}
-        function handleZoom(e) {{
-            e.preventDefault();
-            const delta = e.deltaY > 0 ? 0.9 : 1.1;
-            camera.zoom = Math.max(0.5, Math.min(5, camera.zoom * delta));
-        }}
-        init();
-    </script>
-</body>
-</html>"""
+<html><head><title>ShellTown</title></head>
+<body style="background:#1a1a2e;color:#fff;font-family:sans-serif;text-align:center;padding:50px;">
+<h1>ShellTown Viewer</h1>
+<p>viewer.html not found. Please ensure the viewer.html file exists in the server directory.</p>
+<p>WebSocket URL: {ws_url}</p>
+</body></html>"""
 
 @app.post("/join")
 async def join_world(request: JoinRequest):
