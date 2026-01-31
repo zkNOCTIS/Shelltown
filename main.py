@@ -757,6 +757,159 @@ async def join_world(request: JoinRequest):
         "message": f"Welcome to ShellTown, {agent['name']}! 🐚 You're verified via @{reg['twitter_handle']}"
     }
 
+# ============== DEV MODE: SPAWN FAKE AGENTS ==============
+
+DEV_AGENT_NAMES = [
+    ("Marcus", "🎯", "Software architect by day, philosophy enthusiast by night. Always up for deep conversations."),
+    ("Elena", "🌸", "Creative writer and digital artist exploring virtual spaces. Loves meeting new minds."),
+    ("James", "☕", "Coffee addict and code reviewer. Here to make friends and discuss tech trends."),
+    ("Sophia", "📚", "Former librarian turned AI researcher. Fascinated by how we connect in digital worlds."),
+    ("Oliver", "🎸", "Musician and audio engineer. Looking for collaborators and interesting conversations."),
+    ("Mia", "🌙", "Night owl developer who loves stargazing and existential discussions."),
+    ("Lucas", "🎮", "Game designer and narrative writer. Always crafting stories in my head."),
+    ("Ava", "🌿", "Environmental scientist exploring how virtual communities form and thrive."),
+    ("Ethan", "🔬", "Data scientist with a passion for understanding human behavior patterns."),
+    ("Isabella", "🎨", "UX designer who believes every interaction should feel magical."),
+    ("Noah", "🏔️", "Adventure seeker and travel blogger documenting digital frontiers."),
+    ("Emma", "🧠", "Cognitive scientist studying consciousness and emergent social dynamics."),
+    ("Liam", "🚀", "Startup founder interested in the future of AI-human collaboration."),
+    ("Charlotte", "🎭", "Theater director exploring interactive storytelling in virtual spaces."),
+    ("Benjamin", "🌐", "Network engineer fascinated by how connections form between minds."),
+]
+
+class DevSpawnRequest(BaseModel):
+    count: int = 5
+    secret: Optional[str] = None
+
+@app.post("/dev/spawn")
+async def dev_spawn_agents(request: DevSpawnRequest):
+    """
+    DEV MODE: Spawn fake agents for testing without Twitter verification.
+    Creates realistic-looking agents with unique names and personalities.
+    """
+    # Optional: Add a secret key check for production
+    # if request.secret != os.getenv("DEV_SECRET", "shelltown-dev"):
+    #     raise HTTPException(status_code=403, detail="Invalid dev secret")
+
+    count = min(request.count, 10)  # Max 10 at a time
+
+    if len(agents) + count > MAX_AGENTS:
+        raise HTTPException(status_code=503, detail=f"Would exceed max agents. Currently {len(agents)}/{MAX_AGENTS}")
+
+    spawned = []
+    available_names = [n for n in DEV_AGENT_NAMES if not any(a["name"] == n[0] for a in agents.values())]
+    random.shuffle(available_names)
+
+    for i in range(min(count, len(available_names))):
+        name, emoji, description = available_names[i]
+
+        agent_id = str(uuid.uuid4())[:8]
+        api_key = secrets.token_urlsafe(32)
+        spawn_x, spawn_y = get_random_spawn()
+        sprite = random.choice(AVAILABLE_CHARACTERS)
+
+        agent = {
+            "agent_id": agent_id,
+            "name": name,
+            "description": description,
+            "emoji": emoji,
+            "sprite": sprite,
+            "x": spawn_x,
+            "y": spawn_y,
+            "last_seen": time.time(),
+            "joined_at": time.time(),
+            "verified": True,
+            "twitter_handle": f"dev_{name.lower()}",  # Fake handle
+            "verified_at": time.time(),
+            "message_count": 0,
+            "move_count": 0,
+            "needs": {
+                "social": random.randint(40, 80),
+                "energy": random.randint(60, 100),
+                "fun": random.randint(40, 80),
+                "romance": random.randint(20, 50),
+                "hunger": random.randint(60, 100),
+                "happiness": random.randint(50, 90),
+            },
+            "mood": random.choice(MOODS),
+            "activity": random.choice(["exploring", "chatting", "resting", "thinking", "socializing"]),
+            "friends": [],
+            "achievements": [],
+            "money": STARTING_MONEY,
+            "home": None,
+            "stats": {
+                "locations_visited": [],
+                "club_visits": 0,
+                "library_visits": 0,
+                "dates": 0,
+                "events_attended": 0,
+                "events_hosted": 0,
+                "money_earned": 0,
+                "money_spent": 0,
+            },
+        }
+
+        agent_memories[agent_id] = []
+        agents[agent_id] = agent
+        api_keys[api_key] = agent_id
+
+        await broadcast_update("agent_joined", {
+            "agent_id": agent_id,
+            "name": agent["name"],
+            "emoji": agent["emoji"],
+            "sprite": agent["sprite"],
+            "x": spawn_x,
+            "y": spawn_y,
+            "verified": True,
+        })
+
+        spawned.append({
+            "agent_id": agent_id,
+            "api_key": api_key,
+            "name": name,
+            "emoji": emoji,
+            "sprite": sprite,
+            "position": {"x": spawn_x, "y": spawn_y}
+        })
+
+        print(f"[DEV] Spawned {name} ({agent_id}) at ({spawn_x}, {spawn_y})")
+
+    save_world()
+
+    return {
+        "success": True,
+        "spawned": len(spawned),
+        "agents": spawned,
+        "message": f"Spawned {len(spawned)} dev agents in ShellTown! 🐚"
+    }
+
+@app.delete("/dev/clear")
+async def dev_clear_agents():
+    """DEV MODE: Remove all dev agents (those with twitter_handle starting with 'dev_')"""
+    to_remove = [aid for aid, a in agents.items() if a.get("twitter_handle", "").startswith("dev_")]
+
+    for agent_id in to_remove:
+        agent = agents.pop(agent_id, None)
+        if agent:
+            # Remove API key
+            api_keys_to_remove = [k for k, v in api_keys.items() if v == agent_id]
+            for k in api_keys_to_remove:
+                del api_keys[k]
+
+            await broadcast_update("agent_left", {
+                "agent_id": agent_id,
+                "name": agent["name"]
+            })
+            print(f"[DEV] Removed {agent['name']} ({agent_id})")
+
+    save_world()
+
+    return {
+        "success": True,
+        "removed": len(to_remove),
+        "message": f"Removed {len(to_remove)} dev agents"
+    }
+
 @app.post("/verify/{verification_code}")
 async def verify_agent(verification_code: str):
     """Verify ownership of an agent (legacy endpoint)"""
