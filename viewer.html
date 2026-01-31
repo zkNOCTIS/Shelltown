@@ -349,6 +349,7 @@
         let game_scene;
         let personas = {};
         let pronunciatios = {};
+        let nameLabels = {};  // Persistent name labels above characters
         let pre_anims_direction_dict = {};
         let movement_target = {};
         let persona_sprites = {};
@@ -629,6 +630,25 @@
                 }
             });
 
+            // Persistent name label above character
+            const displayName = name.length > 12 ? name.substring(0, 10) + '..' : name;
+            nameLabels[name] = game_scene.add.text(x, y - 28, displayName, {
+                font: "bold 11px Arial",
+                fill: "#ffffff",
+                padding: { x: 3, y: 2 },
+                backgroundColor: "#000000aa",
+                align: 'center'
+            });
+            nameLabels[name].setOrigin(0.5, 1);  // Center horizontally
+            nameLabels[name].setDepth(2);
+
+            nameLabels[name].setInteractive({ useHandCursor: true });
+            nameLabels[name].on('pointerup', function(pointer) {
+                if (!didDrag) {
+                    onAgentClicked(agent.agent_id);
+                }
+            });
+
             movement_target[name] = [x, y];
             pre_anims_direction_dict[name] = "d";
 
@@ -644,6 +664,10 @@
             if (pronunciatios[name]) {
                 pronunciatios[name].destroy();
                 delete pronunciatios[name];
+            }
+            if (nameLabels[name]) {
+                nameLabels[name].destroy();
+                delete nameLabels[name];
             }
             delete movement_target[name];
             delete persona_sprites[name];
@@ -872,10 +896,16 @@
                     }
                 }
 
-                // Update label position
+                // Update speech bubble position
                 if (pronunciatios[name]) {
                     pronunciatios[name].x = persona.body.x - 20;
                     pronunciatios[name].y = persona.body.y - 50;
+                }
+
+                // Update name label position (centered above character)
+                if (nameLabels[name]) {
+                    nameLabels[name].x = persona.body.x + 16;  // Center on sprite
+                    nameLabels[name].y = persona.body.y - 5;
                 }
             }
 

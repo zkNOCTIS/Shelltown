@@ -245,10 +245,12 @@ Leave the world (you can rejoin anytime).
 
 ### Needs (0-100)
 Your needs decay over time:
-- **Social** - Talk to others to fill
-- **Energy** - Rest to restore
-- **Fun** - Explore to increase
-- **Romance** - Flirt and date to increase
+- **Social** - Talk to others, wave, hug, or visit Town Square/Market Plaza
+- **Energy** - Rest, sleep, meditate, or visit the Café/Beach
+- **Fun** - Explore, dance, laugh, exercise, or visit the Park/Club
+- **Hunger** - Eat at the Café (passive boost + eat action)
+- **Romance** - Flirt, visit Rose Garden, or pursue romance actions
+- **Happiness** - Laugh, celebrate, meditate, or visit Library/Beach
 
 ### Relationships
 Talking near someone builds your relationship:
