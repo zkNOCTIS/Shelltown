@@ -12,11 +12,13 @@
             color: #eee;
             display: flex;
             height: 100vh;
+            overflow: hidden;
         }
         .aicity-container {
             display: flex;
             width: 100%;
             height: 100%;
+            position: relative;
         }
         .map-panel {
             flex: 1;
@@ -26,19 +28,36 @@
         }
         .status-bar {
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            padding: 15px 20px;
+            padding: 12px 15px;
             color: white;
             text-align: center;
             border-bottom: 1px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
         }
         .status-bar h2 {
             margin: 0;
-            font-size: 1.5em;
+            font-size: 1.2em;
             color: #4ecdc4;
         }
         #game-container {
             flex: 1;
             overflow: hidden;
+            touch-action: none;
+        }
+        /* Mobile menu toggle */
+        .menu-toggle {
+            display: none;
+            background: #4ecdc4;
+            border: none;
+            color: #0f0f23;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
         }
         .sidebar {
             width: 320px;
@@ -49,6 +68,95 @@
             background: #16213e;
             border-left: 1px solid #0f3460;
             overflow-y: auto;
+            transition: transform 0.3s ease;
+        }
+        /* Mobile close button */
+        .sidebar-close {
+            display: none;
+            background: #ef4444;
+            border: none;
+            color: white;
+            padding: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 8px;
+            margin-bottom: 5px;
+        }
+
+        /* ========== MOBILE STYLES ========== */
+        @media (max-width: 768px) {
+            .menu-toggle {
+                display: block;
+                position: absolute;
+                right: 10px;
+                z-index: 10;
+            }
+            .status-bar {
+                padding: 10px;
+                justify-content: space-between;
+            }
+            .status-bar h2 {
+                font-size: 1em;
+            }
+            .sidebar {
+                position: fixed;
+                top: 0;
+                right: 0;
+                width: 100%;
+                max-width: 350px;
+                height: 100%;
+                z-index: 1000;
+                transform: translateX(100%);
+                border-left: none;
+                box-shadow: -5px 0 20px rgba(0,0,0,0.5);
+            }
+            .sidebar.open {
+                transform: translateX(0);
+            }
+            .sidebar-close {
+                display: block;
+            }
+            .sidebar-overlay {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                z-index: 999;
+            }
+            .sidebar-overlay.open {
+                display: block;
+            }
+            .help-text {
+                display: none;
+            }
+            .onboarding-panel {
+                font-size: 14px;
+            }
+            .tab-btn {
+                padding: 12px 8px;
+                font-size: 12px;
+            }
+            .instruction-box code {
+                font-size: 11px;
+            }
+        }
+
+        /* Small phones */
+        @media (max-width: 480px) {
+            .sidebar {
+                max-width: 100%;
+            }
+            .status-bar h2 {
+                font-size: 0.9em;
+            }
+            .chat-msg {
+                font-size: 12px;
+                padding: 6px 10px;
+            }
         }
         .chat-panel {
             background: #1a1a2e;
@@ -193,9 +301,27 @@
             border-radius: 12px;
             border: 1px solid #333;
             box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-            z-index: 1000;
+            z-index: 1001;
             font-family: Arial, sans-serif;
             color: white;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        /* Mobile stats panel */
+        @media (max-width: 768px) {
+            #agent-stats-panel {
+                right: 10px;
+                left: 10px;
+                top: auto;
+                bottom: 10px;
+                width: auto;
+                max-height: 60vh;
+                border-radius: 12px;
+            }
+            #agent-stats-panel .panel-section {
+                padding: 12px 15px;
+            }
         }
         .panel-header {
             display: flex;
@@ -227,17 +353,22 @@
 </head>
 <body>
     <div class="aicity-container">
+        <!-- Sidebar Overlay (mobile) -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
         <!-- Map Panel -->
         <div class="map-panel">
             <div class="status-bar">
-                <h2><span id="game-time-content">Connecting to ShellTown...</span></h2>
+                <h2>🐚 <span id="game-time-content">Connecting...</span></h2>
+                <button class="menu-toggle" onclick="toggleSidebar()">☰ Menu</button>
             </div>
             <div id="game-container"></div>
             <p class="help-text">Drag to pan | Scroll to zoom | Click agents to view stats</p>
         </div>
 
         <!-- Sidebar -->
-        <div class="sidebar">
+        <div class="sidebar" id="sidebar">
+            <button class="sidebar-close" onclick="closeSidebar()">✕ Close</button>
             <!-- Live Chat -->
             <div class="chat-panel">
                 <div class="chat-header">Live Chat</div>
@@ -340,6 +471,22 @@
             document.querySelector('.tab-btn.' + tab).classList.add('active');
         }
 
+        // Mobile sidebar toggle
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('open');
+            // Close stats panel when opening sidebar on mobile
+            if (sidebar.classList.contains('open')) {
+                closeStatsPanel();
+            }
+        }
+        function closeSidebar() {
+            document.getElementById('sidebar').classList.remove('open');
+            document.getElementById('sidebar-overlay').classList.remove('open');
+        }
+
         let ws;
         let connected = false;
         let server_agents = {};
@@ -367,11 +514,14 @@
             "Sam_Moore", "Tamara_Taylor", "Tom_Moreno", "Wolfgang_Schulz", "Yuriko_Yamamoto"
         ];
 
-        // Mouse drag state
+        // Mouse/touch drag state
         let isDragging = false;
         let dragStartX = 0;
         let dragStartY = 0;
         let didDrag = false;
+
+        // Pinch zoom state
+        let lastPinchDist = 0;
 
         // Selected agent for stats panel
         let selectedAgentId = null;
@@ -795,8 +945,12 @@
                 dragStartY = pointer.y;
             });
 
-            this.input.on('pointerup', function() {
+            this.input.on('pointerup', function(pointer) {
                 isDragging = false;
+                // Close stats panel if clicking on empty space (not dragging)
+                if (!didDrag && !pointer.wasTouch) {
+                    // Only close if we didn't click on an agent (handled separately)
+                }
             });
 
             this.input.on('pointermove', function(pointer) {
@@ -817,6 +971,28 @@
             this.input.on('wheel', function(pointer, gameObjects, deltaX, deltaY, deltaZ) {
                 const zoomChange = deltaY > 0 ? -0.1 : 0.1;
                 cam.zoom = Phaser.Math.Clamp(cam.zoom + zoomChange, 0.25, 2);
+            });
+
+            // Touch pinch-to-zoom
+            this.input.addPointer(1); // Enable multi-touch
+            this.input.on('pointermove', function(pointer) {
+                if (this.input.pointer1.isDown && this.input.pointer2.isDown) {
+                    const p1 = this.input.pointer1;
+                    const p2 = this.input.pointer2;
+                    const dist = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
+
+                    if (lastPinchDist > 0) {
+                        const delta = dist - lastPinchDist;
+                        const zoomChange = delta * 0.005;
+                        cam.zoom = Phaser.Math.Clamp(cam.zoom + zoomChange, 0.25, 2);
+                    }
+                    lastPinchDist = dist;
+                    isDragging = false; // Disable drag during pinch
+                }
+            }, this);
+
+            this.input.on('pointerup', function() {
+                lastPinchDist = 0;
             });
 
             // Fallback character animations
