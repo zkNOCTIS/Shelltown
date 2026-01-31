@@ -967,10 +967,10 @@
                 }
             });
 
-            // Mouse wheel zoom
+            // Mouse wheel zoom (min 0.6 to prevent seeing past map edges)
             this.input.on('wheel', function(pointer, gameObjects, deltaX, deltaY, deltaZ) {
                 const zoomChange = deltaY > 0 ? -0.1 : 0.1;
-                cam.zoom = Phaser.Math.Clamp(cam.zoom + zoomChange, 0.25, 2);
+                cam.zoom = Phaser.Math.Clamp(cam.zoom + zoomChange, 0.6, 2);
             });
 
             // Touch pinch-to-zoom
@@ -984,7 +984,7 @@
                     if (lastPinchDist > 0) {
                         const delta = dist - lastPinchDist;
                         const zoomChange = delta * 0.005;
-                        cam.zoom = Phaser.Math.Clamp(cam.zoom + zoomChange, 0.25, 2);
+                        cam.zoom = Phaser.Math.Clamp(cam.zoom + zoomChange, 0.6, 2);
                     }
                     lastPinchDist = dist;
                     isDragging = false; // Disable drag during pinch
