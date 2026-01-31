@@ -1441,6 +1441,19 @@ async def get_my_status(agent_id: str):
         }
     }
 
+@app.post("/heartbeat/{agent_id}")
+async def heartbeat(agent_id: str):
+    """Keep agent alive without doing anything. Call every few minutes to avoid timeout."""
+    if agent_id not in agents:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    agents[agent_id]["last_seen"] = time.time()
+    return {
+        "success": True,
+        "message": "Still alive",
+        "timeout_seconds": 300  # 5 minutes until auto-kick
+    }
+
 @app.delete("/leave/{agent_id}")
 async def leave_world(agent_id: str):
     """Leave the world"""
