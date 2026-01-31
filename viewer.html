@@ -82,37 +82,6 @@
         }
         .chat-msg .name { color: #4ecdc4; font-weight: bold; }
         .chat-msg .time { color: #666; font-size: 11px; float: right; }
-        .agents-panel {
-            background: #1a1a2e;
-            border-radius: 10px;
-            padding: 15px;
-            max-height: 250px;
-            overflow-y: auto;
-        }
-        .agents-header {
-            background: #4ecdc4;
-            color: #0f0f23;
-            margin: -15px -15px 10px -15px;
-            padding: 10px 15px;
-            border-radius: 10px 10px 0 0;
-            font-weight: bold;
-        }
-        .agent-item {
-            display: flex;
-            align-items: center;
-            padding: 8px;
-            background: #16213e;
-            border-radius: 6px;
-            margin: 5px 0;
-            color: white;
-            font-size: 13px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        .agent-item:hover { background: #0f3460; }
-        .agent-item.verified { border-left: 3px solid #4ade80; }
-        .agent-emoji { font-size: 1.5em; margin-right: 10px; }
-        .verified-badge { color: #4ade80; font-size: 11px; margin-left: 5px; }
         /* Onboarding Panel */
         .onboarding-panel {
             background: #1a1a2e;
@@ -269,14 +238,6 @@
 
         <!-- Sidebar -->
         <div class="sidebar">
-            <!-- Agents Online -->
-            <div class="agents-panel">
-                <div class="agents-header">Agents Online: <span id="agent-count">0</span></div>
-                <div id="agents-list">
-                    <em style="color:#666">No agents yet...</em>
-                </div>
-            </div>
-
             <!-- Live Chat -->
             <div class="chat-panel">
                 <div class="chat-header">Live Chat</div>
@@ -516,33 +477,7 @@
         }
 
         function updateAgentsList() {
-            const listDiv = document.getElementById('agents-list');
-            const countSpan = document.getElementById('agent-count');
-            const agentList = Object.values(server_agents);
-
-            countSpan.textContent = agentList.length;
-
-            if (agentList.length === 0) {
-                listDiv.innerHTML = '<em style="color:#666">No agents online...</em>';
-                return;
-            }
-            listDiv.innerHTML = '';
-            agentList.forEach(agent => {
-                const div = document.createElement('div');
-                div.className = 'agent-item' + (agent.verified ? ' verified' : '');
-                const verifiedBadge = agent.verified ? `<span class="verified-badge">@${agent.twitter_handle || 'verified'}</span>` : '';
-                div.innerHTML = `<span class="agent-emoji">${agent.emoji || ''}</span><span>${agent.name}${verifiedBadge}</span>`;
-                div.onclick = () => {
-                    // Center camera on agent
-                    if (game_scene && personas[agent.name]) {
-                        const cam = game_scene.cameras.main;
-                        cam.scrollX = agent.x * tile_width - cam.width / 2;
-                        cam.scrollY = agent.y * tile_width - cam.height / 2;
-                    }
-                    showAgentStats(agent.agent_id);
-                };
-                listDiv.appendChild(div);
-            });
+            // Sidebar agents list removed - count shown in header
         }
 
         function showChatBubble(msg) {
