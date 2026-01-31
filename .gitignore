@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.env
+aicity_data.json
+*.log
+.venv/
+venv/
