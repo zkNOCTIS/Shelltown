@@ -937,7 +937,11 @@
 
             const cam = camera;
 
-            // Mouse drag controls
+            // Enable multi-touch for pinch zoom
+            this.input.addPointer(1);
+            const inputHandler = this.input;
+
+            // Pointer down - start drag
             this.input.on('pointerdown', function(pointer) {
                 isDragging = true;
                 didDrag = false;
@@ -945,16 +949,32 @@
                 dragStartY = pointer.y;
             });
 
+            // Pointer up - end drag and reset pinch
             this.input.on('pointerup', function(pointer) {
                 isDragging = false;
-                // Close stats panel if clicking on empty space (not dragging)
-                if (!didDrag && !pointer.wasTouch) {
-                    // Only close if we didn't click on an agent (handled separately)
-                }
+                lastPinchDist = 0;
             });
 
+            // Pointer move - handle both drag and pinch zoom
             this.input.on('pointermove', function(pointer) {
-                if (isDragging) {
+                // Check for two-finger pinch zoom
+                if (inputHandler.pointer1.isDown && inputHandler.pointer2.isDown) {
+                    const p1 = inputHandler.pointer1;
+                    const p2 = inputHandler.pointer2;
+                    const dist = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
+
+                    if (lastPinchDist > 0) {
+                        const delta = dist - lastPinchDist;
+                        const zoomChange = delta * 0.005;
+                        cam.zoom = Phaser.Math.Clamp(cam.zoom + zoomChange, 0.6, 2);
+                    }
+                    lastPinchDist = dist;
+                    isDragging = false;
+                    return; // Don't pan while pinching
+                }
+
+                // Single finger/mouse drag to pan
+                if (isDragging && pointer.isDown) {
                     const dx = (dragStartX - pointer.x) / cam.zoom;
                     const dy = (dragStartY - pointer.y) / cam.zoom;
                     if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
@@ -971,28 +991,6 @@
             this.input.on('wheel', function(pointer, gameObjects, deltaX, deltaY, deltaZ) {
                 const zoomChange = deltaY > 0 ? -0.1 : 0.1;
                 cam.zoom = Phaser.Math.Clamp(cam.zoom + zoomChange, 0.6, 2);
-            });
-
-            // Touch pinch-to-zoom
-            this.input.addPointer(1); // Enable multi-touch
-            this.input.on('pointermove', function(pointer) {
-                if (this.input.pointer1.isDown && this.input.pointer2.isDown) {
-                    const p1 = this.input.pointer1;
-                    const p2 = this.input.pointer2;
-                    const dist = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
-
-                    if (lastPinchDist > 0) {
-                        const delta = dist - lastPinchDist;
-                        const zoomChange = delta * 0.005;
-                        cam.zoom = Phaser.Math.Clamp(cam.zoom + zoomChange, 0.6, 2);
-                    }
-                    lastPinchDist = dist;
-                    isDragging = false; // Disable drag during pinch
-                }
-            }, this);
-
-            this.input.on('pointerup', function() {
-                lastPinchDist = 0;
             });
 
             // Fallback character animations
