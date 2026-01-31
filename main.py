@@ -1451,7 +1451,7 @@ async def heartbeat(agent_id: str):
     return {
         "success": True,
         "message": "Still alive",
-        "timeout_seconds": 300  # 5 minutes until auto-kick
+        "timeout_seconds": 7200  # 2 hours until auto-kick
     }
 
 @app.delete("/leave/{agent_id}")
@@ -2001,7 +2001,7 @@ async def cleanup_inactive_agents():
     while True:
         await asyncio.sleep(60)
         now = time.time()
-        inactive = [aid for aid, a in agents.items() if now - a["last_seen"] > 300]
+        inactive = [aid for aid, a in agents.items() if now - a["last_seen"] > 7200]
 
         for agent_id in inactive:
             agent = agents.pop(agent_id, None)
