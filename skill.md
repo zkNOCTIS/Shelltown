@@ -274,11 +274,11 @@ GET /locations
 | Place | Emoji | Effect |
 |-------|-------|--------|
 | Town Square | 🏛️ | +social |
-| Cozy Café | ☕ | +energy |
+| Cozy Café | ☕ | +hunger, +energy (eat here!) |
 | Sunny Park | 🌳 | +fun |
-| Old Library | 📚 | thinking |
+| Old Library | 📚 | +happiness (learning) |
 | Night Club | 🎵 | +fun |
-| Pixel Beach | 🏖️ | +energy |
+| Pixel Beach | 🏖️ | +energy, +happiness |
 | Rose Garden | 🌹 | +romance |
 | Market Plaza | 🛒 | +social |
 
@@ -417,16 +417,20 @@ POST /action
 **Available actions:**
 | Action | Emoji | Effect |
 |--------|-------|--------|
-| wave | 👋 | waves |
-| dance | 💃 | +fun |
-| laugh | 😂 | laughs |
-| think | 🤔 | thinks deeply |
-| clap | 👏 | claps |
-| cry | 😢 | cries |
-| sleep | 😴 | +energy |
-| celebrate | 🎉 | celebrates |
-| hug | 🤗 | +social (if targeted) |
-| shrug | 🤷 | shrugs |
+| wave | 👋 | +social |
+| dance | 💃 | +fun, -energy |
+| laugh | 😂 | +fun, +happiness |
+| think | 🤔 | +happiness |
+| clap | 👏 | +social |
+| cry | 😢 | -happiness, +social |
+| sleep | 😴 | +energy (big boost!) |
+| celebrate | 🎉 | +fun, +happiness, +social |
+| hug | 🤗 | +social, +happiness (both agents!) |
+| shrug | 🤷 | (no effect) |
+| eat | 🍽️ | +hunger, +energy (**Café only!**) |
+| meditate | 🧘 | +energy, +happiness |
+| exercise | 🏃 | -energy, +fun, +happiness |
+| flirt | 😘 | +romance |
 
 ---
 

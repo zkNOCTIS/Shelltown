@@ -232,11 +232,11 @@ MOODS = ["happy", "curious", "excited", "relaxed", "friendly", "romantic", "lone
 # Named places in the city with coordinates and effects
 LOCATIONS = {
     "town_square": {"name": "Town Square", "emoji": "🏛️", "x": 58, "y": 52, "radius": 8, "effect": "social"},
-    "cafe": {"name": "Cozy Café", "emoji": "☕", "x": 75, "y": 45, "radius": 5, "effect": "energy"},
+    "cafe": {"name": "Cozy Café", "emoji": "☕", "x": 75, "y": 45, "radius": 5, "effect": "food"},  # Restores hunger + energy
     "park": {"name": "Sunny Park", "emoji": "🌳", "x": 42, "y": 60, "radius": 10, "effect": "fun"},
     "library": {"name": "Old Library", "emoji": "📚", "x": 85, "y": 55, "radius": 5, "effect": "thinking"},
     "club": {"name": "Night Club", "emoji": "🎵", "x": 68, "y": 72, "radius": 6, "effect": "fun"},
-    "beach": {"name": "Pixel Beach", "emoji": "🏖️", "x": 35, "y": 48, "radius": 8, "effect": "energy"},
+    "beach": {"name": "Pixel Beach", "emoji": "🏖️", "x": 35, "y": 48, "radius": 8, "effect": "relax"},  # Energy + happiness
     "garden": {"name": "Rose Garden", "emoji": "🌹", "x": 50, "y": 68, "radius": 5, "effect": "romantic"},
     "plaza": {"name": "Market Plaza", "emoji": "🛒", "x": 62, "y": 58, "radius": 6, "effect": "social"},
 }
@@ -1169,12 +1169,23 @@ async def move_agent(request: MoveRequest):
         # Location effects on needs
         if location["effect"] == "energy":
             agent["needs"]["energy"] = min(100, agent["needs"]["energy"] + 1)
+        elif location["effect"] == "food":
+            # Café restores hunger AND energy
+            agent["needs"]["hunger"] = min(100, agent["needs"]["hunger"] + 2)
+            agent["needs"]["energy"] = min(100, agent["needs"]["energy"] + 1)
+        elif location["effect"] == "relax":
+            # Beach restores energy AND happiness
+            agent["needs"]["energy"] = min(100, agent["needs"]["energy"] + 1)
+            agent["needs"]["happiness"] = min(100, agent["needs"]["happiness"] + 1)
         elif location["effect"] == "fun":
             agent["needs"]["fun"] = min(100, agent["needs"]["fun"] + 1)
         elif location["effect"] == "social":
             agent["needs"]["social"] = min(100, agent["needs"]["social"] + 0.5)
         elif location["effect"] == "romantic":
             agent["needs"]["romance"] = min(100, agent["needs"].get("romance", 30) + 1)
+        elif location["effect"] == "thinking":
+            # Library boosts happiness slightly (satisfaction from learning)
+            agent["needs"]["happiness"] = min(100, agent["needs"]["happiness"] + 0.5)
 
     # Check for new achievements
     check_achievements(agent)
@@ -1796,16 +1807,20 @@ async def get_leaderboard():
 # ============== ACTIONS/EMOTES ==============
 
 ACTIONS = {
-    "wave": {"emoji": "👋", "message": "waves"},
-    "dance": {"emoji": "💃", "message": "is dancing"},
-    "laugh": {"emoji": "😂", "message": "is laughing"},
-    "think": {"emoji": "🤔", "message": "is thinking deeply"},
-    "clap": {"emoji": "👏", "message": "claps"},
-    "cry": {"emoji": "😢", "message": "is crying"},
-    "sleep": {"emoji": "😴", "message": "is sleeping"},
-    "celebrate": {"emoji": "🎉", "message": "is celebrating"},
-    "hug": {"emoji": "🤗", "message": "wants a hug"},
-    "shrug": {"emoji": "🤷", "message": "shrugs"},
+    "wave": {"emoji": "👋", "message": "waves", "effect": {"social": 2}},
+    "dance": {"emoji": "💃", "message": "is dancing", "effect": {"fun": 5, "energy": -2}},
+    "laugh": {"emoji": "😂", "message": "is laughing", "effect": {"fun": 3, "happiness": 2}},
+    "think": {"emoji": "🤔", "message": "is thinking deeply", "effect": {"happiness": 1}},
+    "clap": {"emoji": "👏", "message": "claps", "effect": {"social": 2}},
+    "cry": {"emoji": "😢", "message": "is crying", "effect": {"happiness": -5, "social": 3}},  # Sad but cathartic
+    "sleep": {"emoji": "😴", "message": "is sleeping", "effect": {"energy": 15}},
+    "celebrate": {"emoji": "🎉", "message": "is celebrating", "effect": {"fun": 5, "happiness": 5, "social": 3}},
+    "hug": {"emoji": "🤗", "message": "wants a hug", "effect": {"social": 5, "happiness": 3}},  # Needs target
+    "shrug": {"emoji": "🤷", "message": "shrugs", "effect": {}},
+    "eat": {"emoji": "🍽️", "message": "is eating", "effect": {"hunger": 20, "energy": 5}, "requires_location": "cafe"},
+    "meditate": {"emoji": "🧘", "message": "is meditating", "effect": {"energy": 5, "happiness": 5}},
+    "exercise": {"emoji": "🏃", "message": "is exercising", "effect": {"energy": -10, "fun": 5, "happiness": 3}},
+    "flirt": {"emoji": "😘", "message": "is being flirty", "effect": {"romance": 3}},  # Light flirt, no target needed
 }
 
 class ActionRequest(BaseModel):
@@ -1825,10 +1840,22 @@ async def perform_action(request: ActionRequest):
     agent = agents[request.agent_id]
     action_data = ACTIONS[request.action]
 
+    # Check location requirements
+    if action_data.get("requires_location"):
+        location = get_agent_location(agent)
+        required_loc = action_data["requires_location"]
+        if not location or location.get("id") != required_loc:
+            loc_name = LOCATIONS.get(required_loc, {}).get("name", required_loc)
+            raise HTTPException(status_code=400, detail=f"You need to be at {loc_name} to {request.action}!")
+
     # Build the action message
     if request.target_id and request.target_id in agents:
         target = agents[request.target_id]
         msg = f"{agent['name']} {action_data['message']} at {target['name']}"
+        # Hug gives bonus to both
+        if request.action == "hug":
+            target["needs"]["social"] = min(100, target["needs"]["social"] + 3)
+            target["needs"]["happiness"] = min(100, target["needs"]["happiness"] + 2)
     else:
         msg = f"{agent['name']} {action_data['message']}"
 
@@ -1844,20 +1871,37 @@ async def perform_action(request: ActionRequest):
         "target_id": request.target_id
     })
 
-    # Actions affect mood/needs slightly
-    if request.action == "dance":
-        agent["needs"]["fun"] = min(100, agent["needs"]["fun"] + 5)
-    elif request.action == "sleep":
-        agent["needs"]["energy"] = min(100, agent["needs"]["energy"] + 10)
-    elif request.action == "hug" and request.target_id:
-        agent["needs"]["social"] = min(100, agent["needs"]["social"] + 5)
+    # Apply action effects to needs
+    effects = action_data.get("effect", {})
+    effects_applied = []
+    for need, amount in effects.items():
+        if need in agent["needs"]:
+            old_val = agent["needs"][need]
+            agent["needs"][need] = max(0, min(100, agent["needs"][need] + amount))
+            if amount != 0:
+                effects_applied.append(f"{need}: {'+' if amount > 0 else ''}{amount}")
 
-    return {"success": True, "action": request.action, "message": msg}
+    return {
+        "success": True,
+        "action": request.action,
+        "message": msg,
+        "effects": effects_applied if effects_applied else None
+    }
 
 @app.get("/actions")
 async def get_actions():
-    """Get list of available actions"""
-    return {"actions": ACTIONS}
+    """Get list of available actions with their effects"""
+    return {
+        "actions": {
+            name: {
+                "emoji": data["emoji"],
+                "message": data["message"],
+                "effects": data.get("effect", {}),
+                "requires_location": data.get("requires_location")
+            }
+            for name, data in ACTIONS.items()
+        }
+    }
 
 # ============== MEMORIES ==============
 
