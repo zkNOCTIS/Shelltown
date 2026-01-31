@@ -549,8 +549,16 @@
         function showChatBubble(msg) {
             const agent = server_agents[msg.from_id];
             if (agent && pronunciatios[agent.name]) {
-                let initials = agent.name.split(' ').map(w => w[0]).join('').toUpperCase().substring(0,2);
-                pronunciatios[agent.name].setText(initials + ": " + (msg.from_emoji || '') + msg.message.substring(0, 25));
+                // Show name (truncated to 12 chars) + message
+                const displayName = agent.name.length > 12 ? agent.name.substring(0, 10) + '..' : agent.name;
+                pronunciatios[agent.name].setText(displayName + ": " + msg.message.substring(0, 30));
+
+                // Clear bubble after 5 seconds
+                setTimeout(() => {
+                    if (pronunciatios[agent.name]) {
+                        pronunciatios[agent.name].setText('');
+                    }
+                }, 5000);
             }
         }
 
